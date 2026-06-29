@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Provenance Guard</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #111; }
+    h1 { font-size: 1.4rem; font-weight: 700; }
+    h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; }
+
+    .layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 16px; padding: 20px; max-width: 1100px; margin: 0 auto; }
+    .header { grid-column: 1 / -1; padding: 16px 0 4px; }
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; }
+    .full-width { grid-column: 1 / -1; }
+
+    label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    textarea, input { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.9rem; font-family: inherit; resize: vertical; }
+    textarea:focus, input:focus { outline: none; border-color: #555; }
+    .field { margin-bottom: 12px; }
+
+    button { padding: 8px 18px; background: #111; color: #fff; border: none; border-radius: 5px; font-size: 0.9rem; cursor: pointer; }
+    button:hover { background: #333; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+
+    .result { margin-top: 14px; padding: 12px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 0.85rem; }
+    .result pre { white-space: pre-wrap; word-break: break-word; font-family: monospace; }
+
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .badge-ai     { background: #fde8e8; color: #b91c1c; }
+    .badge-human  { background: #dcfce7; color: #15803d; }
+    .badge-uncertain { background: #fef9c3; color: #92400e; }
+
+    .bar-wrap { background: #e5e7eb; border-radius: 4px; height: 8px; margin: 4px 0 10px; }
+    .bar { height: 8px; border-radius: 4px; background: #111; transition: width 0.4s; }
+
+    .log-entry { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 0.82rem; }
+    .log-entry .meta { color: #888; font-size: 0.75rem; margin-bottom: 4px; }
+    .log-entry .cid { font-family: monospace; font-size: 0.75rem; color: #555; word-break: break-all; }
+    .error { color: #b91c1c; font-size: 0.85rem; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const API = "http://localhost:5000";
+
+function badgeClass(attr) {
+  if (attr === "likely_ai") return "badge badge-ai";
+  if (attr === "likely_human") return "badge badge-human";
+  return "badge badge-uncertain";
+}
+
+function ConfidenceBar({ value }) {
+  return (
+    <div className="bar-wrap">
+      <div className="bar" style={{ width: `${Math.round(value * 100)}%` }} />
+    </div>
+  );
+}
+
+// ── Submit panel ─────────────────────────────────────────────────────────────
+
+function SubmitPanel({ onSubmit }) {
+  const [text, setText] = React.useState("");
+  const [creatorId, setCreatorId] = React.useState("");
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(""); setResult(null); setLoading(true);
+    try {
+      const res = await fetch(`${API}/submit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, creator_id: creatorId || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Request failed"); return; }
+      setResult(data);
+      if (onSubmit) onSubmit(data.content_id);
+    } catch (err) {
+      setError("Could not reach server — is Flask running on port 5000?");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Submit Text</h2>
+      <form onSubmit={handleSubmit}>
+        <div className="field">
+          <label>Text to analyze</label>
+          <textarea rows={6} value={text} onChange={e => setText(e.target.value)} placeholder="Paste text here…" required />
+        </div>
+        <div className="field">
+          <label>Creator ID (optional)</label>
+          <input value={creatorId} onChange={e => setCreatorId(e.target.value)} placeholder="e.g. user-123" />
+        </div>
+        <button type="submit" disabled={loading || !text.trim()}>
+          {loading ? "Analyzing…" : "Analyze"}
+        </button>
+      </form>
+
+      {error && <p className="error">{error}</p>}
+
+      {result && (
+        <div className="result">
+          <p style={{ marginBottom: 8 }}>
+            <span className={badgeClass(result.attribution)}>{result.attribution.replace("_", " ")}</span>
+            &nbsp;&nbsp;
+            <span style={{ fontSize: "0.8rem", color: "#555" }}>{result.label}</span>
+          </p>
+          <ConfidenceBar value={result.confidence} />
+          <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+            <tbody>
+              <tr><td style={{ color: "#888", paddingRight: 8 }}>Confidence</td><td>{(result.confidence * 100).toFixed(1)}%</td></tr>
+              <tr><td style={{ color: "#888", paddingRight: 8 }}>LLM score</td><td>{result.llm_score.toFixed(3)}</td></tr>
+              <tr><td style={{ color: "#888", paddingRight: 8 }}>Style score</td><td>{result.style_score.toFixed(3)}</td></tr>
+              <tr><td style={{ color: "#888", paddingRight: 8 }}>Content ID</td><td style={{ fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-all" }}>{result.content_id}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Appeal panel ─────────────────────────────────────────────────────────────
+
+function AppealPanel({ lastContentId }) {
+  const [contentId, setContentId] = React.useState("");
+  const [reasoning, setReasoning] = React.useState("");
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (lastContentId) setContentId(lastContentId);
+  }, [lastContentId]);
+
+  async function handleAppeal(e) {
+    e.preventDefault();
+    setError(""); setResult(null); setLoading(true);
+    try {
+      const res = await fetch(`${API}/appeal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content_id: contentId, creator_reasoning: reasoning }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "Request failed"); return; }
+      setResult(data);
+    } catch (err) {
+      setError("Could not reach server — is Flask running on port 5000?");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>File an Appeal</h2>
+      <form onSubmit={handleAppeal}>
+        <div className="field">
+          <label>Content ID</label>
+          <input value={contentId} onChange={e => setContentId(e.target.value)} placeholder="Paste content_id from a submission" required />
+        </div>
+        <div className="field">
+          <label>Creator reasoning</label>
+          <textarea rows={4} value={reasoning} onChange={e => setReasoning(e.target.value)} placeholder="Explain why this text is human-written…" required />
+        </div>
+        <button type="submit" disabled={loading || !contentId.trim() || !reasoning.trim()}>
+          {loading ? "Submitting…" : "Submit Appeal"}
+        </button>
+      </form>
+
+      {error && <p className="error">{error}</p>}
+
+      {result && (
+        <div className="result">
+          <p>✓ Appeal recorded — status: <strong>{result.status}</strong></p>
+          <p style={{ fontSize: "0.8rem", color: "#555", marginTop: 4 }}>{result.message}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Log panel ─────────────────────────────────────────────────────────────────
+
+function LogPanel() {
+  const [entries, setEntries] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  async function fetchLog() {
+    setError(""); setLoading(true);
+    try {
+      const res = await fetch(`${API}/log`);
+      const data = await res.json();
+      setEntries(data.entries || []);
+      setLoaded(true);
+    } catch {
+      setError("Could not reach server — is Flask running on port 5000?");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card full-width">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>Audit Log</h2>
+        <button onClick={fetchLog} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {loaded && entries.length === 0 && <p style={{ color: "#888", fontSize: "0.85rem" }}>No entries yet.</p>}
+
+      {entries.map(e => (
+        <div key={e.id} className="log-entry">
+          <div className="meta">{e.timestamp} · {e.creator_id || "anonymous"}</div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+            <span className={badgeClass(e.attribution)}>{(e.attribution || "").replace("_", " ")}</span>
+            {e.status === "under_review" && <span className="badge" style={{ background: "#ede9fe", color: "#6d28d9" }}>under review</span>}
+            <span style={{ fontSize: "0.8rem", color: "#555" }}>confidence {(e.confidence * 100).toFixed(1)}%</span>
+            <span style={{ fontSize: "0.8rem", color: "#888" }}>llm {e.llm_score?.toFixed(2)} · style {e.stylometric_score?.toFixed(2)}</span>
+          </div>
+          <div className="cid">{e.content_id}</div>
+          {e.appeal_reason && <div style={{ marginTop: 4, fontSize: "0.8rem", color: "#555" }}>Appeal: "{e.appeal_reason}"</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [lastContentId, setLastContentId] = React.useState("");
+
+  return (
+    <div className="layout">
+      <div className="header">
+        <h1>Provenance Guard</h1>
+        <p style={{ color: "#777", fontSize: "0.85rem", marginTop: 4 }}>AI-generated text detection · two-signal pipeline</p>
+      </div>
+      <SubmitPanel onSubmit={setLastContentId} />
+      <AppealPanel lastContentId={lastContentId} />
+      <LogPanel />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

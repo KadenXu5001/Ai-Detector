@@ -31,6 +31,7 @@ limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=[],
+    storage_uri="memory://",
 )
 
 with app.app_context():
@@ -40,7 +41,7 @@ with app.app_context():
 # ── POST /submit ───────────────────────────────────────────────────────────────
 
 @app.route("/submit", methods=["POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("10 per minute;100 per day")
 def submit():
     """
     Accepts JSON: {"text": "<text to analyze>", "creator_id": "<optional>"}
@@ -115,15 +116,15 @@ def submit():
 @app.route("/appeal", methods=["POST"])
 def appeal():
     """
-    Accepts JSON: {"content_id": str, "reason": str}
+    Accepts JSON: {"content_id": str, "creator_reasoning": str}
     Marks the entry under_review in the audit log.
     """
     body = request.get_json(silent=True)
-    if not body or not body.get("content_id") or not body.get("reason", "").strip():
-        return jsonify({"error": "Request body must include 'content_id' and 'reason'."}), 400
+    if not body or not body.get("content_id") or not body.get("creator_reasoning", "").strip():
+        return jsonify({"error": "Request body must include 'content_id' and 'creator_reasoning'."}), 400
 
     content_id = body["content_id"]
-    reason = body["reason"].strip()
+    reason = body["creator_reasoning"].strip()
 
     found = update_appeal(content_id, reason)
     if not found:
@@ -145,6 +146,20 @@ def log():
 
 
 # ── run ────────────────────────────────────────────────────────────────────────
+
+@app.after_request
+def add_cors(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    return response
+
+@app.route("/submit", methods=["OPTIONS"])
+@app.route("/appeal", methods=["OPTIONS"])
+@app.route("/log", methods=["OPTIONS"])
+def options():
+    return "", 204
+
 
 if __name__ == "__main__":
     app.run(debug=True)

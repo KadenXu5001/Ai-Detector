@@ -31,8 +31,9 @@ Academic writing or human edited ai will likely become edge cases.
 
 ## Rate limiting
 
-The rate limit should be
-[your chosen limits + reasoning]
+**Limits:** 10 requests per minute, 100 requests per day per IP.
+
+**Reasoning:** A legitimate writer submitting their own work would rarely need more than a few submissions per minute and 10/min is quite generous for manual use while making scripted flooding impractical. The 100/day cap prevents sustained automated abuse across a full day.
 
 ## Audit log schema
 

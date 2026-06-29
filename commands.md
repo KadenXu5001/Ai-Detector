@@ -30,12 +30,15 @@ curl.exe -s -X POST http://localhost:5000/submit `
 ```json
 {
   "attribution": "likely_ai",
-  "confidence": 0.8,
+  "confidence": 0.69,
   "content_id": "3ff577df-4031-4023-93f8-d8386762b2ba",
-  "label": "This text is likely heavily AI generated, with a 80% confidence of AI generation.",
-  "llm_score": 0.8
+  "label": "This text is likely heavily AI generated, with a 69% confidence of AI generation.",
+  "llm_score": 0.8,
+  "style_score": 0.526
 }
 ```
+
+`confidence` is the combined score: 60% `llm_score` + 40% `style_score`.
 
 ---
 
@@ -62,9 +65,12 @@ curl.exe -s http://localhost:5000/log | python -m json.tool
       "creator_id": "test-user-1",
       "timestamp": "2026-06-29T03:56:04.471Z",
       "attribution": "likely_ai",
-      "confidence": 0.8,
+      "confidence": 0.69,
       "llm_score": 0.8,
-      "status": "classified"
+      "stylometric_score": 0.526,
+      "status": "classified",
+      "appeal_reason": null,
+      "appealed_at": null
     }
   ]
 }
@@ -79,8 +85,16 @@ Flag a submission for human review. Use the `content_id` from a `/submit` respon
 ```powershell
 curl.exe -s -X POST http://localhost:5000/appeal `
   -H "Content-Type: application/json" `
-  --data-raw "{\"content_id\": \"<content_id here>\", \"reason\": \"This is my original writing.\"}"
+  --data-raw "{\"content_id\": \"<content_id here>\", \"creator_reasoning\": \"I wrote this myself from personal experience. I am a non-native English speaker and my writing style may appear more formal than typical.\"}"
 ```
+
+Verify the appeal appears in the log:
+
+```powershell
+curl.exe -s http://localhost:5000/log
+```
+
+The matching entry should show `"status": "under_review"` and `"appeal_reason"` populated.
 
 **Response:**
 ```json
