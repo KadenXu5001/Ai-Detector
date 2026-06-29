@@ -27,7 +27,9 @@ POST /appeal accepts content_id + creator_reason. Writes to audit log. Updates c
 
 ## Anticipated edge cases
 
-Academic writing or human edited ai will likely become edge cases.
+Academic writing will likely get flagged by our system due to the fact that a lot of our stylometrics are based upon long word length and uniform sentence structure, which academic writing will encapsulate.
+
+Furthere more, human edited ai generated contect will likely become edge cases as well since the added uncertainty of human words with a majority AI generated paragraph may lead to some confusion with whether or not it is AI generated or not.
 
 ## Rate limiting
 
@@ -48,13 +50,9 @@ final_score
 label
 status (ie appeal / no appeal)
 
-The asymmetric thresholds in the confidence section are worth highlighting in your README — the spec hints at this (false positives are worse) and it'll show graders you read carefully. Want help drafting the label variants or the stylometric heuristics code next?
-
 ## Architecture
 
-Here's the previous overview diagram converted to ASCII for your planning.md:
-PROVENANCE GUARD — SYSTEM OVERVIEW
-===================================
+# PROVENANCE GUARD — SYSTEM OVERVIEW
 
 Client (HTTP request)
 |
