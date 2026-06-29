@@ -80,7 +80,7 @@ v
 | +---------------------+ +------------------+  |
 | | Signal 1: LLM       | | Signal 2:        |  |
 | | classifier          | | stylometrics     |  |
-| | Groq · semantic +   | | TTR, sent.       |  |
+| | Groq · semantic +   | | top-k length, sent.       |  |
 | | stylistic           | | variance, punct. |  |
 | +---------------------+ +------------------+  |
 |           |                     |             |
