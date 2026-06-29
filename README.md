@@ -63,58 +63,56 @@ Return all audit log entries as JSON, newest first.
 
 ## Architecture
 
-Here's the previous overview diagram converted to ASCII for your planning.md:
-PROVENANCE GUARD — SYSTEM OVERVIEW
-===================================
-
+```
 Client (HTTP request)
 |
 v
 +------------------------------------------------+
-| API LAYER |
-| Flask · POST /submit · POST /appeal · GET /log|
-| Flask-Limiter rate limiting |
+| API LAYER                                      |
+| Flask · POST /submit · POST /appeal · GET /log |
+| Flask-Limiter rate limiting                    |
 +------------------------------------------------+
-|
-v
+                        |
+                        v
 +------------------------------------------------+
-| DETECTION PIPELINE |
-| |
-| +---------------------+ +------------------+|
-| | Signal 1: LLM | | Signal 2: ||
-| | classifier | | stylometrics ||
-| | Groq · semantic + | | TTR, sent. ||
-| | stylistic | | variance, punct. ||
-| +---------------------+ +------------------+|
-| | | |
-| +----------+------------+ |
+| DETECTION PIPELINE                             |
+|                                                |
+| +---------------------+ +------------------+  |
+| | Signal 1: LLM       | | Signal 2:        |  |
+| | classifier          | | stylometrics     |  |
+| | Groq · semantic +   | | TTR, sent.       |  |
+| | stylistic           | | variance, punct. |  |
+| +---------------------+ +------------------+  |
+|           |                     |             |
+|           +----------+----------+             |
 +------------------------------------------------+
-|
-v
+                        |
+                        v
 +------------------------------------------------+
-| CONFIDENCE SCORING + TRANSPARENCY LABEL |
-| weighted avg → score → label variant: |
-| high AI / uncertain / high human |
+| CONFIDENCE SCORING + TRANSPARENCY LABEL        |
+| weighted avg → score → label variant:          |
+| high AI / uncertain / high human               |
 +------------------------------------------------+
-|
-+-------------+-------------+
-| |
-v v
-+----------------+ +---------------------+
-| JSON response | | AUDIT LOG |
-| to client | | (SQLite) |
-| result · | | all decisions + |
-| confidence · | | appeals logged here |
-| label_text · | +---------------------+
-| content_id | ^
-+----------------+ |
-|
-+---------------------+
-| APPEALS WORKFLOW |
-| POST /appeal · |
-| capture reason · |
-| set under_review |
-+---------------------+
+                        |
+          +-------------+-------------+
+          |                           |
+          v                           v
++----------------+         +---------------------+
+| JSON response  |         | AUDIT LOG           |
+| to client      |         | (SQLite)            |
+| result ·       |         | all decisions +     |
+| confidence ·   |         | appeals logged here |
+| label_text ·   |         +---------------------+
+| content_id     |                   ^
++----------------+                   |
+                                      |
+                          +---------------------+
+                          | APPEALS WORKFLOW    |
+                          | POST /appeal ·      |
+                          | capture reason ·    |
+                          | set under_review    |
+                          +---------------------+
+```
 
 ## Detection Pipeline
 
