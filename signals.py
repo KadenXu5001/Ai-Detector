@@ -8,7 +8,9 @@ Test each function independently before wiring into app.py.
 """
 
 import json
+import math
 import os
+import re
 
 from dotenv import load_dotenv
 from groq import Groq
@@ -68,3 +70,73 @@ def call_llm_signal(text: str) -> float:
         ) from exc
 
     return max(0.0, min(1.0, score))
+
+
+# ── Signal 2: Stylometrics ────────────────────────────────────────────────────
+
+def _split_sentences(text: str) -> list[str]:
+    return [s.strip() for s in re.split(r'[.!?]+', text) if s.strip()]
+
+
+def _avg_top_word_lengths(text: str, top_n: int = 3) -> float:
+    """Average length of the top-N longest words per sentence, across all sentences."""
+    sentences = _split_sentences(text)
+    scores = []
+    for s in sentences:
+        words = re.findall(r'[a-zA-Z]+', s)
+        if not words:
+            continue
+        top = sorted(len(w) for w in words)[-top_n:]
+        scores.append(sum(top) / len(top))
+    return sum(scores) / len(scores) if scores else 0.0
+
+
+def _sentence_length_variance(text: str) -> float:
+    """Variance of word counts across sentences."""
+    sentences = _split_sentences(text)
+    lengths = [len(re.findall(r'\S+', s)) for s in sentences if s]
+    if len(lengths) < 2:
+        return 0.0
+    mean = sum(lengths) / len(lengths)
+    return sum((l - mean) ** 2 for l in lengths) / len(lengths)
+
+
+def _punctuation_density(text: str) -> float:
+    """Fraction of characters that are punctuation."""
+    if not text:
+        return 0.0
+    punct = sum(1 for c in text if c in '.,;:!?-—…()[]"\'')
+    return punct / len(text)
+
+
+def call_style_signal(text: str) -> float:
+    """
+    Score text using three stylometric heuristics.
+
+    Metrics:
+      - Average top-3 word length per sentence (AI uses longer, more complex words)
+      - Sentence length variance (AI is more uniform → low variance → higher AI score)
+      - Punctuation density (AI overuses commas/semicolons)
+
+    Returns a float in [0.0, 1.0]: 1.0 = likely AI, 0.0 = likely human.
+    """
+    # Avg top word length: normalize so 5-char avg = 0.0 (human), 10-char avg = 1.0 (AI)
+    word_len_score = max(0.0, min(1.0, (_avg_top_word_lengths(text) - 5.0) / 5.0))
+
+    # Sentence variance: low variance = AI; normalize so variance >= 40 = 0.0 (human)
+    variance_score = max(0.0, min(1.0, 1.0 - (_sentence_length_variance(text) / 40.0)))
+
+    # Punctuation density: normalize so >= 5% = 1.0 (AI)
+    punct_score = max(0.0, min(1.0, _punctuation_density(text) / 0.05))
+
+    return (word_len_score + variance_score + punct_score) / 3.0
+
+
+# ── Confidence scoring ────────────────────────────────────────────────────────
+
+def combine_scores(llm_score: float, style_score: float) -> float:
+    """
+    Weighted average of both signals per planning.md spec: 60% LLM, 40% stylometric.
+    Returns a float in [0.0, 1.0].
+    """
+    return (0.60 * llm_score) + (0.40 * style_score)

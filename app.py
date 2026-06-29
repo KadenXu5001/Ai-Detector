@@ -23,7 +23,7 @@ from db import (
     update_appeal,
     write_log_entry,
 )
-from signals import call_llm_signal
+from signals import call_llm_signal, call_style_signal, combine_scores
 
 app = Flask(__name__)
 
@@ -65,8 +65,11 @@ def submit():
     # Signal 1: LLM classifier
     llm_score = call_llm_signal(text)
 
-    # M4 placeholder: second signal not yet wired; confidence = llm_score for now
-    confidence = llm_score
+    # Signal 2: Stylometrics
+    style_score = call_style_signal(text)
+
+    # Combined confidence score: 60% LLM, 40% stylometric
+    confidence = combine_scores(llm_score, style_score)
 
     # Attribution thresholds
     if confidence < 0.35:
@@ -92,16 +95,18 @@ def submit():
         content_id=content_id,
         creator_id=creator_id,
         llm_score=llm_score,
+        stylometric_score=style_score,
         confidence=confidence,
         attribution=attribution,
     )
 
     return jsonify({
-        "content_id":  content_id,
-        "attribution": attribution,
-        "confidence":  confidence,
-        "label":       label,
-        "llm_score":   llm_score,
+        "content_id":    content_id,
+        "attribution":   attribution,
+        "confidence":    confidence,
+        "label":         label,
+        "llm_score":     llm_score,
+        "style_score":   style_score,
     })
 
 

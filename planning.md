@@ -3,7 +3,7 @@ The system has five logical layers: the API surface (endpoints + rate limiting),
 ## Signals
 
 - Signal 1 — LLM classifier (Groq): asks the model to score text as human or AI-generated. Captures semantic coherence, stylistic patterns, and narrative quality holistically. It can't capture if a text has been human modifided though
-- Signal 2 — Stylometrics (pure Python): computes type-token ratio (vocabulary diversity), sentence length variance, and punctuation density. AI text is statistically more uniform while human writing is noisier. It won't be able to detect common ai words (ie delve).
+- Signal 2 — Stylometrics (pure Python): computes average top-word length per sentence, sentence length variance, and punctuation density. AI text uses longer, more complex vocabulary and is structurally more uniform, while human writing is noisier and uses shorter words even in formal contexts. TTR was considered but rejected — it is length-dependent and conflates long documents with AI authorship.
 
 ## Confidence scoring approach
 
